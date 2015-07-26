@@ -134,6 +134,8 @@ class TapeLLVM(TinyLLVM):
 
     def emitAllRegDump(self):
         self._emitLine("declare void @dumpReg(i64*) nounwind")
+        self._emitLine("declare void @printSpace() nounwind")
+
         self._emitLine("define void @reg_dump_all() {")
         self._emitLine("entry:")
         self.indent += 2
@@ -141,6 +143,8 @@ class TapeLLVM(TinyLLVM):
             parentReg = names[0]
             n64 = self.regName(parentReg)
             self.emitPrintRegname(parentReg)
+            for sp in range(5 - len(parentReg)):
+                self._emitLine("call void @printSpace()")
             self._emitLine("call void @dumpReg(i64* {})".format(n64))
         self._emitLine("ret void")
         self.indent -= 2
