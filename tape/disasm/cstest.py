@@ -24,13 +24,13 @@ for i in md.disasm(CODE, 0):
         print()
 
 
-def dumpASM(flo, mode):
+def dumpASM(flo, mode, maxAddr=1e99):
     modeRef = {32: CS_MODE_32, 64: CS_MODE_64}
 
     md = Cs(CS_ARCH_X86, modeRef[mode])
     md.detail = True
 
-    for i in md.disasm(CODE, 0):
+    for i in md.disasm(flo, 0):
         # print(dir(i))
         print("0x%x:\t%s\t%s" % (i.address, i.mnemonic, i.op_str))
         print("\tImplicit registers read: ", end="")
@@ -42,3 +42,6 @@ def dumpASM(flo, mode):
         for r in i.regs_write:
             print("%s " % i.reg_name(r))
         print()
+
+        if i.address > maxAddr:
+            break

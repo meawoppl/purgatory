@@ -280,6 +280,8 @@ def analyzeExports(flo, imageSectionHeader):
         adr = struct.unpack("I", flo.read(4))[0]
         print("      > " + name, adr)
 
+    1 / 0
+
 
 def extractDLL(pathToDLL):
     # Open the file
@@ -294,7 +296,11 @@ def extractDLL(pathToDLL):
     inth = readNTHeader(f)
     assert inth.Signature == b"PE\x00\x00", "NT Header Magic (Should be PE00)"
 
-    print(inth.Signature)
+    print("PE SIG:", inth.Signature)
+
+    machineArch = inth.FileHeader.Machine
+    archDecode = {0x014c: 32, 0x8664: 64}
+    print("Arch:", archDecode[machineArch])
 
     sectionCount = inth.FileHeader.NumberOfSections
 
@@ -333,6 +339,8 @@ for root, dirs, fis in os.walk(folder):
 
 print("%i dll's found" % len(files))
 
+
+files = ["/media/meawoppl/Blade/Program Files (x86)/Altium/AD14/avcodec.dll"]
 
 for n, fPath in enumerate(files):
     print()
