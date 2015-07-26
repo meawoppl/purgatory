@@ -169,8 +169,8 @@ def readMODRM(flo, rexByte):
     # MRG TODO:
     rex_r = 0
 
-    mod = (modrmByte >> 6) & 3
     reg = ((modrmByte >> 3) & 7) | rex_r
+    mod = (modrmByte >> 6) & 3
 
     return mod, reg
 
