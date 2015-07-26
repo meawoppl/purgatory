@@ -32,7 +32,7 @@ def regNameToBitCount(regName):
         if regName in regGroup:
             return bitWidth[regGroup.index(regName)]
 
-print("EAX", regNameToBitCount("rax"))
+# print("EAX", regNameToBitCount("rax"))
 
 
 def randomName(length=12):
@@ -92,8 +92,8 @@ class TinyLLVM:
 
     def mainEnd(self):
         self._emitLine("""ret i32 %r""")
-        self._emitLine("}")
         self.indent -= 2
+        self._emitLine("}")
 
         self._emitLine("""declare i32 @printf(i8*, ...) #1""")
         self._emitLine("""attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf"="true" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }""")
@@ -132,6 +132,21 @@ class TapeLLVM(TinyLLVM):
         self.emitSetReg(regName, rFmt, parentReg, pFmt)
         self._emitLine("")
 
+    def emitAllRegDump(self):
+        self._emitLine("declare void @dumpReg(i64*) nounwind")
+        self._emitLine("define void @reg_dump_all() {")
+        self._emitLine("entry:")
+        self.indent += 2
+        for names in registerNamesTable:
+            parentReg = names[0]
+            n64 = self.regName(parentReg)
+            self.emitPrintRegname(parentReg)
+            self._emitLine("call void @dumpReg(i64* {})".format(n64))
+        self._emitLine("ret void")
+        self.indent -= 2
+        self._emitLine("}")
+        self._emitLine("")
+
     def emitRegisterUtil(self):
         fmts = ["i64", "i32", "i16", "i8"]
         for names in registerNamesTable:
@@ -144,15 +159,24 @@ class TapeLLVM(TinyLLVM):
             for rn, regFmt in zip(names, fmts):
                 self.emitGlobalConstCString(rn, tokenName="n_" + rn)
                 self.emitGetSetReg(rn, regFmt, n64, "i64")
+        self.emitAllRegDump()
 
     def emitPrintRegname(self, registerName):
-        baseString = """%res = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([{0} x i8]* @n_{1}, i32 0, i32 0))\n"""
-        self._emitLine(baseString.format(len(registerName) + 1, registerName))
+        rn = randomName()
+        baseString = """%{0} = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([{1} x i8]* @n_{2}, i32 0, i32 0))\n"""
+        self._emitLine(baseString.format(rn, len(registerName) + 1, registerName))
 
     def emitRegDumpFunc(self):
+        self._emitLine("define i8 @reg_dump() {")
+        self._emitLine("entry:")
+        self.indent += 2
+
         for rGroup in registerNamesTable:
             parentReg = rGroup[0]
             self.emitPrintRegname(parentReg)
+
+        self.indent -= 2
+        self._emitLine("}")
 
 
 def emitPrintCStringToken(flo, tokenName):
@@ -168,13 +192,14 @@ if __name__ == "__main__":
     import os
     import subprocess
 
-    with open("jank-test.ll", "w") as testFile:
+    with open("cpu-model.ll", "w") as testFile:
         tl = TapeLLVM(testFile)
         tl.uglyPre()
         tl.emitRegisterUtil()
         tl.emitGlobalConstCString(" ", tokenName="space")
         tl.mainStart()
-        tl._emitLine("%0 = call i32 @reg_set_eax(i32 65536)")
+        tl._emitLine("%0 = call i32 @reg_set_eax(i32 0)")
+        tl._emitLine("call void @reg_dump_all()")
         tl.emitPrintRegname("eax")
         # tl._emitLine("%1 = call i32 @reg_set_eax(i32 65280)")
         tl._emitLine("%r = call i32 @reg_get_eax()")
@@ -185,11 +210,18 @@ if __name__ == "__main__":
     os.system("/usr/bin/clang --version")
     print()
 
-    os.system('/usr/bin/clang jank-test.ll -o tokill')
+    print("Compile Helpers")
+    os.system("clang helpers.c -S -emit-llvm -o helpers.ll")
+
+    print("Link registers to helpers")
+    os.system('llvm-link cpu-model.ll helpers.ll -S -o cpu.ll')
+
+    print("Compile registers+helpers")
+    os.system('clang cpu.ll -o cpu')
 
     print("Run:")
     try:
-        subprocess.check_call(["./tokill"])
+        subprocess.check_call(["./cpu"])
         r = 0
     except subprocess.CalledProcessError as e:
         r = e.returncode

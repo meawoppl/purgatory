@@ -1,8 +1,8 @@
-from binascii import hexlify
+from format import REXByte
 from io import BytesIO
 import xml.etree.ElementTree as ET
 
-opCodeData = ET.fromstring(open("linted.xml").read())
+opCodeData = ET.fromstring(open("x86-64-ref.xml").read())
 
 bytesToName = {}
 prefixes = []
@@ -15,7 +15,7 @@ def extactOpCodes(superHeading):
     for ocXML in superGroup.findall(".//pri_opcd"):
         vStr = ocXML.get("value")
 
-        group = ocXML.find(".//grp1") 
+        group = ocXML.find(".//grp1")
         if (group is not None) and (group.text == "prefix"):
             prefixes.append(vStr)
             continue
@@ -37,6 +37,8 @@ for code, nm in sorted(allCodes.items()):
 
 
 _qryResult = {}
+
+
 def queryCodeByBytes(bytez, extInt=None):
     assert len(bytez) in [1, 2]
 
@@ -50,7 +52,7 @@ def queryCodeByBytes(bytez, extInt=None):
 
     # MRG NOTE: Stupid and slow
     for ocXML in sg.findall(".//pri_opcd"):
-        rightOC = int(ocXML.get("value"), base=16) == bytez[-1]
+        # rightOC = int(ocXML.get("value"), base=16) == bytez[-1]
         for ent in ocXML.findall(".//entry"):
             if extInt is None:
                 return ent
@@ -66,15 +68,13 @@ def ocBytesToName(bytez):
     return ocXML.find(".//mnem").text
 
 
-
-possiblePrefixes = {0xF0: "LOCK", 0xF2: "REP/REPE", 0xF3: "REPNE", 
-                    0x2E: "CS", 0x36: "SS", 0x3E: "DS", 
-                    0x26:"ES", 0x64:"FS", 0x65:"GS",
+possiblePrefixes = {0xF0: "LOCK", 0xF2: "REP/REPE", 0xF3: "REPNE",
+                    0x2E: "CS", 0x36: "SS", 0x3E: "DS",
+                    0x26: "ES", 0x64: "FS", 0x65: "GS",
                     0x66: "DATA", 0x67: "ADDR"}
 
 for i in range(16):
-    possiblePrefixes[0x40 + i ] = "REX?"
-
+    possiblePrefixes[0x40 + i] = "REX?"
 
 
 def readOpCode(flo):
@@ -86,17 +86,16 @@ def readOpCode(flo):
         return oc1
 
 
-
-
 def floPeek(flo):
     before = flo.tell()
     b = flo.read(1)
     flo.seek(before)
     return b
 
+
 def detectPrefixes(flo):
     """
-    Given a FLO, read it forward until there are no prefixes remaining.  
+    Given a FLO, read it forward until there are no prefixes remaining.
     Return a list of single byte prefix codes.
     """
 
@@ -116,24 +115,26 @@ def detectPrefixes(flo):
     return pfx
 
 
-
 # [['40',  . . .  '4f']]
 rexPrefixes = ["%x" % i for i in range(0x40, 0x50)]
 
 # Vex prefixes
 vexPrefixes = [0xC4, 0xC5]
 
-def processPrefixes(flo):
-    pfxs =  detectPrefixes(flo)
 
-    # Check if this of is "locked"
+def processPrefixes(flo):
+    # Pull the prefixes off of the flo
+    pfxs = detectPrefixes(flo)
+    print("%i prefixes detected." % len(pfxs))
+
+    # Check if this OP is "locked"
     lock = 0xf0 in pfxs
 
     # Decode all rex bytes. Use only the last
-    rexByte = REXByte(0x40)
+    rexByte = REXByte(0x40)  # MRG NOTE: This changes for i386
     vex = None
     for pfx in pfxs:
-        if pfx in rexPrefixes:        
+        if pfx in rexPrefixes:
             rexByte = REXByte(pfx)
             continue
 
@@ -144,13 +145,13 @@ def processPrefixes(flo):
     # Decode the address/register sizes
     aSize = 32
     dSize = 32
-    if 0x67 in nonRexPrefixes:
+    if 0x67 in pfxs:
         aSize = 64
 
     if rexByte and rexByte.w:
         dSize = 64
     else:
-        if 0x66 in nonRexPrefixes:
+        if 0x66 in pfxs:
             dSize = 16
         else:
             dSize = 32
@@ -168,31 +169,26 @@ def readMODRM(flo, rexByte):
     # MRG TODO:
     rex_r = 0
 
-    mod = (modrm >> 6) & 3;
-    reg = ((modrm >> 3) & 7) | rex_r;
+    mod = (modrmByte >> 6) & 3
+    reg = ((modrmByte >> 3) & 7) | rex_r
 
-
-
-
+    return mod, reg
 
 
 def decodeML(bytez):
     bio = BytesIO(bytez)
     pfxs = processPrefixes(bio)
 
-    print(len(pfxs), "prefixes detected" , repr(pfxs))
+    print(len(pfxs), "prefixes detected", repr(pfxs))
 
     opCode = readOpCode(bio)
     print(opCode, ocBytesToName(opCode))
 
-    needsMODRM(opcode)
-
-
+    # needsMODRM(opCode)
 
 if __name__ == "__main__":
 
     decodeML(b"\x55")  # PUSH EBP
-    decodeML(b"\x8B\xEC") # MOV EBP, ESP
-
+    decodeML(b"\x8B\xEC")  # MOV EBP, ESP
     decodeML(b"\x66\x00")
     decodeML(b"\x0F\x58")

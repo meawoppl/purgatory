@@ -252,7 +252,6 @@ def analyzeExports(flo, imageSectionHeader):
 	# print(ied.AddressOfFunctions)
 
 	fileAddress = vaToFA(ied.AddressOfNames)
-	# print("Presumed file ptr", fileAddress)
 	flo.seek(fileAddress)
 
 	stringStarts = []
@@ -273,14 +272,17 @@ def analyzeExports(flo, imageSectionHeader):
 
 		names.append(n[:-1].decode("ascii"))
 
-	for name in names:
-		print("      > " + name)
 
-def decodeML(bytes):
-	possiblePrefixes = {0xF0: "LOCK", 0xF2: "REP/REPE", 0xF3: "REPNE", 
-						0x2E: "CS", 0x36: "SS" 0x3E: "DS", 
-						0x26:"ES", 0x64:"FS", 0x65:"GS"}
+	for idee, name in enumerate(names):
+		functionAddressAddress = vaToFA(ied.AddressOfFunctions + (4*idee))
+		flo.seek(functionAddressAddress)
+		adr = struct.unpack("I", flo.read(4))[0]
+		print("      > " + name, adr)
 
+
+
+
+	1/0
 
 def extractDLL(pathToDLL):	
 	# Open the file
